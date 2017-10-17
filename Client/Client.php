@@ -8,11 +8,13 @@ use Kptive\PaymentSipsBundle\Exception\PaymentRequestException;
 
 class Client
 {
-
+    /** @var LoggerInterface */
     protected $logger;
 
+    /** @var array */
     protected $binaries;
 
+    /** @var array */
     protected $config;
 
     /**
@@ -29,17 +31,22 @@ class Client
         $this->config = $config;
     }
 
+    /**
+     * @param  string $bin
+     * @param  array  $args
+     * @return string
+     */
     public function run($bin, $args)
     {
         if (!is_file($bin)) {
-            throw new \Exception(sprintf('Binary %s not found', $bin));
+            throw new \InvalidArgumentException(sprintf('Binary %s not found', $bin));
         }
 
-        $process = new Process(sprintf('%s %s', $bin, escapeshellcmd($this->arrayToArgsString($args))));
+        $process = new Process(sprintf('"%s" %s', $bin, escapeshellcmd($this->arrayToArgsString($args))));
         $process->run();
 
         if (!$process->isSuccessful()) {
-            var_dump($args, $process->getErrorOutput());
+            $this->logger->critical($process->getErrorOutput());
             throw new \RuntimeException($process->getErrorOutput());
         }
 
@@ -48,6 +55,10 @@ class Client
         return $process->getOutput();
     }
 
+    /**
+     * @param  string $output
+     * @return string
+     */
     protected function handleRequestOutput($output)
     {
         list($code, $error, $message) = array_merge(explode('!', trim($output, '!')), array_fill(0, 2, ''));
@@ -65,6 +76,10 @@ class Client
         return $message;
     }
 
+    /**
+     * @param  array  $args
+     * @return string
+     */
     protected function arrayToArgsString($args)
     {
         if (is_string($args)) {
@@ -74,13 +89,17 @@ class Client
         $str = '';
         foreach ($args as $key => $val) {
             if (is_numeric($val) or $val) {
-                $str .= sprintf('%s=%s ', $key, $val);
+                $str .= sprintf('%s=%s ', $key, escapeshellarg($val));
             }
         }
 
         return trim($str);
     }
 
+    /**
+     * @param  array  $config
+     * @return string
+     */
     public function request($config)
     {
         $args = array_merge($this->config, $config);
@@ -90,6 +109,10 @@ class Client
         return $this->handleRequestOutput($output);
     }
 
+    /**
+     * @param  string $data the raw response
+     * @return array
+     */
     public function handleResponseData($data)
     {
         $args = array(
